@@ -35,8 +35,11 @@ DETECTIVE_TEMPERATURE = 0.2
 SUSPECT_TEMPERATURE   = 0.7
 
 # ── General parameters ─────────────────────────────────────────────────
-MAX_TOKENS         = 4096
-MAX_TOKENS_FORZATO = 4096
+# Thinking models spend a large share of the output budget on the <think>
+# block; 4096 truncated the actual answer (finish_reason=length). Raised so
+# reasoning + final answer both fit. (We do NOT force /no_think.)
+MAX_TOKENS         = 16384
+MAX_TOKENS_FORZATO = 16384
 TIMEOUT            = 300
 WRITER_TIMEOUT     = 400
 
