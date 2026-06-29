@@ -74,15 +74,18 @@ Set a model per role with `WRITER_MODEL`, `DETECTIVE_MODEL`, `SUSPECT_MODEL` —
 ## 🗂 Architecture
 
 ```
-writer_agent.py          single LLM call → full case JSON (in your chosen language) → cases/caso_NNN/
-orchestrator_multi.py    runs 4 detective profiles → jury aggregation → verdetto.json (the recorded verdict)
-detective_agent.py       ReAct loop: THOUGHT → ACTION (skill) → OBSERVATION → verdict
-suspect_agent.py         single LLM call per question, with history + memory compression
-tools.py                 skills: list_files, read_file, cross_check, take_note, interrogate_suspect
-memory.py                two-threshold compression (message count + character count)
-llm_client.py            OpenAI-compatible client with live token streaming
-live.py                  bridges model tokens → the web UI so you watch it think and write in real time
-app/__init__.py          Flask: SSE streaming for AI pipeline, direct tool calls for human mode
+app/                         Flask web layer: SSE streaming for AI pipeline, direct tool calls for human mode
+web/                         single-page UI (vanilla JS, no build)
+src/                         the engine
+  writer_agent.py            single LLM call → full case JSON (in your chosen language) → cases/caso_NNN/
+  orchestrator_multi.py      runs 4 detective profiles → jury aggregation → verdetto.json (the recorded verdict)
+  detective_agent.py         ReAct loop: THOUGHT → ACTION (skill) → OBSERVATION → verdict
+  suspect_agent.py           single LLM call per question, with history + memory compression
+  tools.py                   skills: list_files, read_file, cross_check, take_note, interrogate_suspect
+  memory.py                  two-threshold compression (message count + character count)
+  llm_client.py              OpenAI-compatible client with live token streaming
+  live.py                    bridges model tokens → the web UI so you watch it think and write in real time
+scripts/                     extra CLI entry points (single-detective run, terminal human mode)
 ```
 
 Cases live in `cases/caso_NNN/` — and the engine enforces fair play:
@@ -104,10 +107,12 @@ Web UI port defaults to `7860` — override with `WEB_PORT=8080` in `.env` or `-
 cd murder_mystery
 pip install -r requirements.txt
 cp .env.example .env       # then edit .env with your LLM credentials
-python -m app.run          # → http://0.0.0.0:7860
+python -m app.run              # web UI → http://0.0.0.0:7860
 
-python writer_agent.py         # generate a case interactively
-python orchestrator_multi.py   # run the AI detectives on the latest case
+python src/writer_agent.py         # generate a case interactively
+python src/orchestrator_multi.py   # run the 4 AI detectives on the latest case
+python scripts/orchestrator.py     # single-detective run
+python scripts/human_detective.py  # play the case from the terminal
 ```
 
 </details>

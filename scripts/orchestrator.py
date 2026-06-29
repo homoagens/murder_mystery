@@ -5,6 +5,9 @@ import json
 import sys
 from pathlib import Path
 
+# This script lives in scripts/; the engine modules live in ../src.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
 from rich.console import Console
 from rich.panel import Panel
 

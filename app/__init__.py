@@ -14,7 +14,8 @@ BASE_DIR = Path(__file__).parent.parent
 ENV_PATH = BASE_DIR / ".env"
 load_dotenv(ENV_PATH)
 
-sys.path.insert(0, str(BASE_DIR))
+SRC_DIR = BASE_DIR / "src"
+sys.path.insert(0, str(SRC_DIR))
 import config
 import tools
 
@@ -183,7 +184,7 @@ def new_case():
     brief_arg = json.dumps(brief)
     def generate():
         yield from sse_subprocess(
-            [sys.executable, "writer_agent.py", "--brief", brief_arg], BASE_DIR)
+            [sys.executable, str(SRC_DIR / "writer_agent.py"), "--brief", brief_arg], BASE_DIR)
         cases = sorted(config.CASES_DIR.glob("caso_*"))
         if cases:
             name, title = cases[-1].name, cases[-1].name
@@ -212,7 +213,7 @@ def run_case(case_name):
         return jsonify({"error": "case not found"}), 404
     def generate():
         yield from sse_subprocess(
-            [sys.executable, "orchestrator_multi.py", str(case_dir)], BASE_DIR)
+            [sys.executable, str(SRC_DIR / "orchestrator_multi.py"), str(case_dir)], BASE_DIR)
         verdict = case_dir / "verdetto.json"
         if verdict.exists():
             yield f"data: {json.dumps({'type': 'verdict', 'data': json.loads(verdict.read_text(encoding='utf-8'))})}\n\n"

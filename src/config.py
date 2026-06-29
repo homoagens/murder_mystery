@@ -4,7 +4,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent / ".env")
+# Repo root = parent of src/. .env and cases/ live there, not inside src/.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
 DEBUG = os.getenv("MM_DEBUG", "").lower() in ("1", "true", "yes")
 
@@ -50,6 +52,8 @@ MAX_MESSAGGI_SOSPETTATO = 20
 MESSAGGI_RECENTI        = 6
 
 # ── Paths ──────────────────────────────────────────────────────────────
-BASE_DIR  = Path(__file__).parent
+# BASE_DIR is the repo root (parent of src/) so generated cases stay at the
+# project root, not inside the source tree.
+BASE_DIR  = PROJECT_ROOT
 CASES_DIR = BASE_DIR / "cases"
 CASES_DIR.mkdir(exist_ok=True)
