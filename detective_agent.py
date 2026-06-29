@@ -11,6 +11,7 @@ from rich.panel import Panel
 
 import config
 import llm_client
+import live
 import tools
 import memory
 
@@ -28,6 +29,11 @@ SKILL = {
 
 # ── Detective system prompt ───────────────────────────────────────────
 SYSTEM_PROMPT = """You are a detective assigned to solve a criminal case.
+
+Be fast. Reason briefly and internally — do NOT write long step-by-step
+deliberations or any <think>/<reasoning> block. Keep the "thought" field to one
+or two short sentences, then act. Speed matters as much as accuracy.
+
 You have access to a folder with the case files and can use these skills:
 
 - list_files(case_dir): list the available files in the case
@@ -190,16 +196,20 @@ def run_detective(case_dir, profile=None):
             messages = memory.comprimi_messaggi(messages, 0, "detective investigation")
 
         # ── LLM call ─────────────────────────────────────────────────
+        live.stream_begin(f"detective {detective_name}")
         try:
             text = llm_client.call_llm(
                 messages    = messages,
                 model       = config.DETECTIVE_MODEL,
                 temperature = temperature,
                 max_tokens  = config.MAX_TOKENS,
+                on_token    = live.token_cb,
             )
         except Exception as e:
             console.print(f"[red]LLM error at step {step}: {e}[/red]")
             continue
+        finally:
+            live.stream_end()
 
         # ── JSON parsing ─────────────────────────────────────────────
         try:
@@ -299,12 +309,17 @@ def run_detective(case_dir, profile=None):
         "final detective verdict"
     )
 
-    text = llm_client.call_llm(
-        messages    = messages,
-        model       = config.DETECTIVE_MODEL,
-        temperature = temperature,
-        max_tokens  = config.MAX_TOKENS_FORZATO,
-    )
+    live.stream_begin(f"detective {detective_name} (forced verdict)")
+    try:
+        text = llm_client.call_llm(
+            messages    = messages,
+            model       = config.DETECTIVE_MODEL,
+            temperature = temperature,
+            max_tokens  = config.MAX_TOKENS_FORZATO,
+            on_token    = live.token_cb,
+        )
+    finally:
+        live.stream_end()
     try:
         response = extract_json(text)
         thought  = response.get("thought", "")

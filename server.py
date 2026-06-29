@@ -83,7 +83,7 @@ def list_cases():
         cases.append({
             "name":   d.name,
             "title":  title,
-            "solved": (d / "soluzione.json").exists(),
+            "solved": (d / "verdetto.json").exists(),
         })
     return jsonify(cases)
 
@@ -118,9 +118,9 @@ def run_case(case_name):
             [sys.executable, "orchestrator_multi.py", str(case_dir)],
             BASE_DIR,
         )
-        sol = case_dir / "soluzione.json"
-        if sol.exists():
-            data = json.loads(sol.read_text(encoding="utf-8"))
+        verdict = case_dir / "verdetto.json"
+        if verdict.exists():
+            data = json.loads(verdict.read_text(encoding="utf-8"))
             yield f"data: {json.dumps({'type': 'verdict', 'data': data})}\n\n"
 
     return Response(generate(), mimetype="text/event-stream",

@@ -27,7 +27,7 @@ Watch the models reason their way to a verdict in real time — or step in yours
 
 ## ✦ What it does
 
-**🖋 Writer agent** generates a complete case from a brief: victim, setting, suspects with secrets and alibis, physical clues, witness statements, and a narrative opening in the style of a classic *giallo*. Every case is unique.
+**🖋 Writer agent** generates a complete case from a brief: victim, setting, suspects with secrets and alibis, physical clues, witness statements, and a narrative opening in the style of a classic *giallo* — in the language you pick (English, Italiano, Español, Français…). Every case is unique.
 
 **🕵 Multi-detective pipeline** runs four AI detectives with different reasoning styles in sequence. Each reads the evidence, interrogates suspects, cross-checks testimonies, and reaches a verdict. A final **jury** weighs all four conclusions and names the guilty party.
 
@@ -38,7 +38,7 @@ Watch the models reason their way to a verdict in real time — or step in yours
 ## 🎲 Modes
 
 ### 🤖 AI mode — watch the models work
-Generate a case, hit **Avvia AI**, and watch four detectives reason through the evidence live. The log shows every thought, every skill call, every deduction. At the end, a verdict card reveals the culprit and the explanation.
+Generate a case, hit **Run**, and watch four detectives reason through the evidence live — token by token, including the model's own thinking as it streams. The log shows every thought, every skill call, every deduction. At the end, a verdict card shows the jury's culprit and reasoning.
 
 ### 🔎 Human mode — play the detective
 Hit **Gioca** on any case and you get:
@@ -56,31 +56,23 @@ Your score is the number of steps it took. The fewer, the sharper the detective.
 
 ## ⚡ Quickstart
 
-One-shot install (creates a `venv/` and installs dependencies):
+**`install` → `configure` → `start`.** Three scripts, run in that order — this is the one and only supported pipeline, the same on every machine. Run them from the `murder_mystery/` folder.
 
-```bat
-install.bat       :: Windows
-```
-```bash
-chmod +x install.sh start.sh && ./install.sh    # Linux / macOS
-```
+| Step | Windows | Linux / macOS | What it does |
+|---|---|---|---|
+| **1** | `install.bat` | `./install.sh` | Creates `venv/` and installs dependencies |
+| **2** | `configure.bat` | `./configure.sh` | Interactive prompts → points it at your LLM and writes `.env` |
+| **3** | `start.bat` | `./start.sh` | Launches the web UI and opens your browser |
 
-Point it at your LLM (interactive — writes `.env` for you):
+The UI opens at **http://localhost:7860**. Re-run step **2** any time to change provider/models; just run step **3** to play again.
 
-```bat
-configure.bat     :: Windows
-./configure.sh    # Linux / macOS
-```
-
-Launch the web UI (opens your browser at `http://localhost:7860`):
-
-```bat
-start.bat         :: Windows
-./start.sh        # Linux / macOS
-```
+> **Linux / macOS, first run only** — make the scripts executable:
+> ```bash
+> chmod +x install.sh configure.sh start.sh
+> ```
 
 <details>
-<summary>Manual setup / CLI mode</summary>
+<summary>Manual setup / CLI mode (advanced — prefer the three scripts above)</summary>
 
 ```bash
 cd murder_mystery
@@ -145,12 +137,14 @@ Use a different model per role: `WRITER_MODEL` for creative writing (high temp),
 ## 🗂 Architecture
 
 ```
-writer_agent.py          single LLM call → full case JSON → saves to cases/caso_NNN/
-orchestrator_multi.py    runs 4 detective profiles → jury aggregation → soluzione.json
+writer_agent.py          single LLM call → full case JSON (in your chosen language) → saves to cases/caso_NNN/
+orchestrator_multi.py    runs 4 detective profiles → jury aggregation → verdetto.json (the recorded verdict)
 detective_agent.py       ReAct loop: THOUGHT → ACTION (skill) → OBSERVATION → verdict
 suspect_agent.py         single LLM call per question, with history + memory compression
 tools.py                 skills: list_files, read_file, cross_check, take_note, interrogate_suspect
 memory.py                two-threshold compression (message count + character count)
+llm_client.py            provider-agnostic client (OpenAI / Anthropic / custom), with live token streaming
+live.py                  bridges model tokens → the web UI so you watch it think and write in real time
 app/__init__.py          Flask: SSE streaming for AI pipeline, direct tool calls for human mode
 ```
 
@@ -163,7 +157,8 @@ Cases live in `cases/caso_NNN/` — and the engine enforces fair play:
 | `indizi.json` | ✅ yes |
 | `testimonianze.json` | ✅ yes |
 | `storia.txt` | ✅ yes |
-| `soluzione.json` | ❌ no — revealed only on accusation |
+| `soluzione.json` | ❌ no — the answer key (written at generation, used only to grade) |
+| `verdetto.json` | ❌ no — the recorded verdict (marks the case solved in the UI) |
 | `note_detective.json` | ✅ yes — written by the detective |
 
 Web UI port defaults to `7860` — override with `WEB_PORT=8080` in `.env` or `--port 8080`.

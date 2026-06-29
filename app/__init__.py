@@ -27,14 +27,26 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mKGHFJABCDnsuhl]")
 def strip_ansi(text):
     return ANSI_RE.sub("", text)
 
+# Unit Separator — marks a live-streaming event line emitted by live.py.
+STREAM_SENTINEL = "\x1f"
+
 def sse_subprocess(cmd, cwd):
     env = {**os.environ, "PYTHONUNBUFFERED": "1", "NO_COLOR": "1",
            "FORCE_COLOR": "0", "COLUMNS": "120",
            "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1",
-           "TERM": "dumb"}
+           "TERM": "dumb", "MM_STREAM": "1"}
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, encoding="utf-8", cwd=str(cwd), env=env)
     for raw in proc.stdout:
+        # Live token-stream events are sentinel-framed JSON — forward as-is.
+        if raw and raw[0] == STREAM_SENTINEL:
+            payload = raw.rstrip("\n")[1:]
+            try:
+                obj = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            yield f"data: {json.dumps(obj)}\n\n"
+            continue
         line = strip_ansi(raw.rstrip())
         if line:
             yield f"data: {json.dumps({'type': 'log', 'text': line})}\n\n"
@@ -159,7 +171,9 @@ def list_cases():
             title = json.loads((d / "caso.json").read_text(encoding="utf-8")).get("titolo", d.name)
         except Exception:
             pass
-        cases.append({"name": d.name, "title": title, "solved": (d / "soluzione.json").exists()})
+        # "solved" means an investigation produced a verdict — NOT that the
+        # answer key (soluzione.json, always present) exists.
+        cases.append({"name": d.name, "title": title, "solved": (d / "verdetto.json").exists()})
     return jsonify(cases)
 
 
@@ -199,9 +213,9 @@ def run_case(case_name):
     def generate():
         yield from sse_subprocess(
             [sys.executable, "orchestrator_multi.py", str(case_dir)], BASE_DIR)
-        sol = case_dir / "soluzione.json"
-        if sol.exists():
-            yield f"data: {json.dumps({'type': 'verdict', 'data': json.loads(sol.read_text(encoding='utf-8'))})}\n\n"
+        verdict = case_dir / "verdetto.json"
+        if verdict.exists():
+            yield f"data: {json.dumps({'type': 'verdict', 'data': json.loads(verdict.read_text(encoding='utf-8'))})}\n\n"
     return Response(generate(), mimetype="text/event-stream", headers=SSE_HEADERS)
 
 
@@ -238,7 +252,7 @@ def game_start(case_name):
         "sospettati": [{"nome": s["nome"], "eta": s["eta"], "ruolo": s["ruolo"]} for s in suspects],
         "note":      notes,
         "files":     sorted(f.name for f in case_dir.iterdir()
-                            if f.is_file() and f.name not in ("soluzione.json", "storia.txt")),
+                            if f.is_file() and f.name not in tools.HIDDEN_FILES),
     })
 
 
@@ -284,6 +298,15 @@ def game_action(case_name):
         motivation = data.get("motivazione", "")
         sol        = json.loads((case_dir / "soluzione.json").read_text(encoding="utf-8"))
         correct    = accused.strip().lower() == sol["colpevole"].strip().lower()
+        # Persist the verdict so the case is marked as solved in the UI.
+        (case_dir / "verdetto.json").write_text(json.dumps({
+            "mode":           "human",
+            "colpevole":      accused,
+            "motivazione":    motivation,
+            "corretto":       correct,
+            "colpevole_vero": sol["colpevole"],
+            "spiegazione":    sol["spiegazione"],
+        }, indent=2, ensure_ascii=False), encoding="utf-8")
         return jsonify({
             "result":        "verdict",
             "accusato":      accused,

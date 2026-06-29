@@ -4,6 +4,7 @@
 import json
 import config
 import llm_client
+import live
 
 from rich.console import Console
 console = Console()
@@ -11,6 +12,10 @@ console = Console()
 SYSTEM_PROMPT = """You are the chair of an investigative commission.
 You have received the verdicts of multiple detectives who investigated the same case independently.
 Your task is to evaluate their conclusions and issue the final verdict.
+
+Be fast. Reason briefly and internally — do NOT write long step-by-step
+deliberations or any <think>/<reasoning> block. Keep the "thought" field short,
+then give the verdict.
 
 Evaluation criteria:
 - Strength of reasoning matters more than numerical majority
@@ -47,12 +52,17 @@ def chiedi_giuria(conclusions):
     ]
 
     console.print("[dim]Jury deliberating...[/dim]")
-    text = llm_client.call_llm(
-        messages    = messages,
-        model       = config.DETECTIVE_MODEL,
-        temperature = 0.2,
-        max_tokens  = config.MAX_TOKENS,
-    )
+    live.stream_begin("jury")
+    try:
+        text = llm_client.call_llm(
+            messages    = messages,
+            model       = config.DETECTIVE_MODEL,
+            temperature = 0.2,
+            max_tokens  = config.MAX_TOKENS,
+            on_token    = live.token_cb,
+        )
+    finally:
+        live.stream_end()
 
     # Robust parsing: extract the first balanced JSON ignoring extra text
     # (same approach as detective_agent.py — needed with thinking models)

@@ -9,16 +9,21 @@ from pathlib import Path
 # PASSIVE SKILLS — observe without modifying
 # ─────────────────────────────────────────────
 
+# Files the detective must never see: the answer key and the saved verdict
+# (verdetto.json contains the ground-truth culprit, so it would leak on re-runs).
+HIDDEN_FILES = {"soluzione.json", "verdetto.json", "storia.txt"}
+
+
 def list_files(case_dir):
     """
     Lists the files available in the case folder.
-    Hides soluzione.json — the detective must not see it.
+    Hides the answer key and verdict — the detective must not see them.
     Returns a human-readable string for the model.
     """
     folder = Path(case_dir)
     files  = [
         f.name for f in folder.iterdir()
-        if f.is_file() and f.name != "soluzione.json" and f.name != "storia.txt"
+        if f.is_file() and f.name not in HIDDEN_FILES
     ]
     return "Available files:\n" + "\n".join(f"- {f}" for f in sorted(files))
 
@@ -29,8 +34,8 @@ def read_file(case_dir, filename):
     Blocks access to soluzione.json.
     Hides mente and cosa_nasconde from sospettati.json.
     """
-    if filename == "soluzione.json":
-        return "ERROR: you cannot read soluzione.json."
+    if filename in ("soluzione.json", "verdetto.json"):
+        return f"ERROR: you cannot read {filename}."
 
     path = Path(case_dir) / filename
     if not path.exists():

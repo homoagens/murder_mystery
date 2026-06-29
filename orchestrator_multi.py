@@ -57,6 +57,25 @@ def pick_case():
     sys.exit(1)
 
 
+def save_verdict(case_dir, verdict, correct, real_culprit):
+    """Persist the jury verdict so the UI can mark the case as investigated.
+
+    This is the file the UI uses for the 'solved' badge — NOT soluzione.json,
+    which is the answer key written at generation time and always present.
+    """
+    (Path(case_dir) / "verdetto.json").write_text(
+        json.dumps({
+            "mode":          "ai",
+            "colpevole":     verdict["conclusion"],
+            "spiegazione":   verdict.get("reason", ""),
+            "consenso":      verdict.get("consenso", ""),
+            "corretto":      correct,
+            "colpevole_vero": real_culprit,
+        }, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 def evaluate(case_dir, verdict):
     solution_path = Path(case_dir) / "soluzione.json"
     if not solution_path.exists():
@@ -65,6 +84,7 @@ def evaluate(case_dir, verdict):
     real_culprit = solution["colpevole"].strip().lower()
     jury_culprit = verdict["conclusion"].strip().lower()
     correct = (real_culprit in jury_culprit or jury_culprit in real_culprit)
+    save_verdict(case_dir, verdict, correct, solution["colpevole"])
     if correct:
         console.print(Panel(
             f"CORRECT\nCulprit: {solution['colpevole']}",

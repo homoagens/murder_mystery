@@ -7,6 +7,7 @@ from pathlib import Path
 
 import config
 import llm_client
+import live
 
 
 def _fix_json(raw: str) -> str:
@@ -81,6 +82,10 @@ def run_writer(brief=None):
         if not difficolta:
             difficolta = "media"
 
+        lingua = input("Language to write in [English]: ").strip()
+        if not lingua:
+            lingua = "English"
+
         # Extra fields — optional, omitted if empty
         atmosfera = input("Atmosphere/tone [press Enter to skip]: ").strip()
         tema      = input("Main theme [press Enter to skip]: ").strip()
@@ -91,6 +96,7 @@ def run_writer(brief=None):
         numero_sospettati = brief.get("numero_sospettati", 4)
         crimine           = brief.get("crimine",           "omicidio")
         difficolta        = brief.get("difficolta",        "media")
+        lingua            = brief.get("lingua",            "English")
         atmosfera         = brief.get("atmosfera",         "")
         tema              = brief.get("tema",              "")
         vincolo           = brief.get("vincolo_narrativo", "")
@@ -98,6 +104,8 @@ def run_writer(brief=None):
     # ── Prompt ───────────────────────────────────────────────────────
     system_prompt = """You are a writer of Italian mystery stories. Generate a complete Murder Mystery case.
 Reply ONLY with valid JSON, no text before or after.
+Be fast: do NOT write any reasoning, planning, or <think>/<reasoning> block before
+the JSON. Output the JSON object directly.
 
 The structure must be exactly this:
 {
@@ -151,6 +159,10 @@ to the crime). Only those with mente:true hide something relevant."""
         f"- Number of suspects: {numero_sospettati}\n"
         f"- Type of crime: {crimine}\n"
         f"- Difficulty: {difficolta}\n"
+        f"- Language: {lingua}\n"
+        f"\nWrite ALL the case content — every field value and the narrative — "
+        f"in {lingua}. Keep the JSON keys exactly as specified (do not translate "
+        f"the keys), but all the text values must be written in {lingua}.\n"
     )
     extra = {
         "Atmosphere/tone":      atmosfera,
@@ -181,13 +193,18 @@ to the crime). Only those with mente:true hide something relevant."""
         else:
             print(f"\nRetrying ({attempt}/{MAX_ATTEMPTS}) — malformed JSON: {last_error}")
 
-        text = llm_client.call_llm(
-            messages    = messages,
-            model       = config.WRITER_MODEL,
-            temperature = config.WRITER_TEMPERATURE,
-            max_tokens  = config.MAX_TOKENS,
-            timeout     = config.WRITER_TIMEOUT,
-        )
+        live.stream_begin("writer")
+        try:
+            text = llm_client.call_llm(
+                messages    = messages,
+                model       = config.WRITER_MODEL,
+                temperature = config.WRITER_TEMPERATURE,
+                max_tokens  = config.MAX_TOKENS,
+                timeout     = config.WRITER_TIMEOUT,
+                on_token    = live.token_cb,
+            )
+        finally:
+            live.stream_end()
 
         try:
             data = extract_json(text)

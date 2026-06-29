@@ -8,6 +8,7 @@ from pathlib import Path
 
 import config
 import llm_client
+import live
 import memory
 
 
@@ -71,6 +72,8 @@ Your official alibi: {profile['alibi']}.
 Always speak in first person singular (I, I was, I did, I was doing).
 NEVER use third person (he was, she had, they were).
 Never break character.
+Answer fast and naturally — do NOT write any internal reasoning or
+<think>/<reasoning> block, just reply in character.
 You are speaking directly with a detective.
 Other people present that evening:
 {others_list}
@@ -92,12 +95,17 @@ Respond in the same language the detective uses to address you."""
     ]
 
     # ── LLM call ─────────────────────────────────────────────────────
-    answer = llm_client.call_llm(
-        messages    = messages,
-        model       = config.SUSPECT_MODEL,
-        temperature = config.SUSPECT_TEMPERATURE,
-        max_tokens  = 4096,
-    )
+    live.stream_begin(f"suspect {profile['nome']}")
+    try:
+        answer = llm_client.call_llm(
+            messages    = messages,
+            model       = config.SUSPECT_MODEL,
+            temperature = config.SUSPECT_TEMPERATURE,
+            max_tokens  = 4096,
+            on_token    = live.token_cb,
+        )
+    finally:
+        live.stream_end()
 
     history.append({"role": "user",      "content": question})
     history.append({"role": "assistant", "content": answer})

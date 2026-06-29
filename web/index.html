@@ -79,6 +79,17 @@
   .entry.verdict  { color:var(--green); font-weight:bold; }
   .entry.err      { color:var(--accent2); }
 
+  /* Live token streaming preview */
+  .entry.streaming { border-left:2px solid var(--blue); padding-left:.6rem;
+                     background:rgba(123,104,238,.06); }
+  .entry.streaming .stream-label { font-size:.68rem; text-transform:uppercase;
+                     letter-spacing:.06em; color:var(--blue); margin-bottom:.2rem; }
+  .entry.streaming .stream-think { color:#6a6a72; font-style:italic; }
+  .entry.streaming .stream-text  { color:var(--text); }
+  .entry.streaming .stream-text::after { content:'▋'; color:var(--blue);
+                     animation:caret 1s steps(1) infinite; }
+  @keyframes caret { 50% { opacity:0; } }
+
   /* Verdict (AI mode) */
   #verdict { flex-shrink:0; border-top:1px solid var(--border); background:var(--surface);
              padding:1rem 1.25rem; display:none; }
@@ -215,6 +226,15 @@
         <select id="f-difficolta"><option value="facile">Easy</option>
           <option value="media" selected>Medium</option><option value="difficile">Hard</option></select></div>
     </div>
+    <div class="mfield"><label>Language</label>
+      <select id="f-lingua">
+        <option value="English" selected>English</option>
+        <option value="Italiano">Italiano</option>
+        <option value="Español">Español</option>
+        <option value="Français">Français</option>
+        <option value="Deutsch">Deutsch</option>
+        <option value="Português">Português</option>
+      </select></div>
     <div class="mfield"><label>Atmosphere <span style="color:#444">(opt.)</span></label>
       <input id="f-atmosfera" placeholder="gothic, noir, ironic…"></div>
     <div class="mfield"><label>Theme <span style="color:#444">(opt.)</span></label>
@@ -526,20 +546,50 @@ function runCase() {
   activeSSE = new EventSource(`/api/cases/${activeCaseName}/run`);
   activeSSE.onmessage = e => {
     const msg = JSON.parse(e.data);
+    if (handleStream(msg)) return;
     if (msg.type==='log')     appendAiLog(msg.text);
     if (msg.type==='verdict') showAiVerdict(msg.data);
     if (msg.type==='done') {
+      aiStreamEnd();
       document.getElementById('ai-status').textContent='completato';
       document.getElementById('btn-run').disabled=false;
       loadCases(); activeSSE.close();
     }
   };
-  activeSSE.onerror = ()=>{ document.getElementById('btn-run').disabled=false; activeSSE.close(); };
+  activeSSE.onerror = ()=>{ aiStreamEnd(); document.getElementById('btn-run').disabled=false; activeSSE.close(); };
 }
 function appendAiLog(text) {
   const log=document.getElementById('log');
   const d=document.createElement('div'); d.className='entry '+classify(text); d.textContent=text;
   log.appendChild(d); log.scrollTop=log.scrollHeight;
+}
+
+// ── Live token streaming preview ───────────────────────────────────
+// Shows the model thinking/writing token-by-token in an ephemeral entry,
+// cleared once the call finishes and the formatted log entries follow.
+let streamEl = null;
+function aiStreamBegin(label) {
+  const log=document.getElementById('log');
+  streamEl=document.createElement('div');
+  streamEl.className='entry streaming';
+  streamEl.innerHTML=`<div class="stream-label">${escHtml(label||'generating')}</div>`
+    +`<span class="stream-think"></span><span class="stream-text"></span>`;
+  log.appendChild(streamEl); log.scrollTop=log.scrollHeight;
+}
+function aiStreamToken(text, kind) {
+  if (!streamEl) aiStreamBegin('');
+  const sel = kind==='thinking' ? '.stream-think' : '.stream-text';
+  streamEl.querySelector(sel).textContent += text;
+  const log=document.getElementById('log'); log.scrollTop=log.scrollHeight;
+}
+function aiStreamEnd() {
+  if (streamEl) { streamEl.remove(); streamEl=null; }
+}
+function handleStream(msg) {
+  if (msg.type==='stream_begin') { aiStreamBegin(msg.label); return true; }
+  if (msg.type==='token')        { aiStreamToken(msg.text, msg.kind); return true; }
+  if (msg.type==='stream_end')   { aiStreamEnd(); return true; }
+  return false;
 }
 function classify(t) {
   if (/━+|─+/.test(t)) return 'section';
@@ -721,6 +771,7 @@ function submitNewCase() {
     numero_sospettati: parseInt(document.getElementById('f-sospettati').value),
     crimine: document.getElementById('f-crimine').value.trim() || "murder",
     difficolta: document.getElementById('f-difficolta').value,
+    lingua: document.getElementById('f-lingua').value,
     atmosfera: document.getElementById('f-atmosfera').value.trim(),
     tema: document.getElementById('f-tema').value.trim(),
     vincolo_narrativo: document.getElementById('f-vincolo').value.trim(),
@@ -739,6 +790,7 @@ function submitNewCase() {
   streamPost('/api/cases/new', brief, {
     onLog: text => appendAiLog(text),
     onMsg: msg => {
+      if (handleStream(msg)) return;
       if (msg.type==='new_case') {
         activeCaseName=msg.name;
         document.getElementById('ai-title').textContent=msg.title||msg.name;
@@ -747,6 +799,7 @@ function submitNewCase() {
         loadCases();
       }
       if (msg.type==='done') {
+        aiStreamEnd();
         document.getElementById('ai-status').textContent='';
         document.getElementById('btn-new').disabled=false;
       }
